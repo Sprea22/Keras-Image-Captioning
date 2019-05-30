@@ -106,6 +106,7 @@ from keras.preprocessing.image import img_to_array
 from keras.applications.vgg16 import preprocess_input
 import tensorflow as tf
 from keras.preprocessing import image
+import pickle
 
 # load an image from file
 def load_image(filename):
@@ -123,16 +124,106 @@ def images_to_array(images_list, captions_list, vgg_model, label):
         for idx in captions_list:
             # Load/preprocess the image.
             img_path = images_list[idx]
-            print(img_path)
             img = load_image(img_path)
             # Run through the convolutional layers and resize the output.
             output = vgg_model.predict(img)
             features[idx] = output
 
         # For simplicity, we convert this to a numpy array and save the result to a file.
-        np.save(open(label + '_features', 'wb+'), features)
+        pickle_out = open(label + "_features.pickle","wb")
+        pickle.dump(features, pickle_out)
+        pickle_out.close()
 
 # Convert the input images into numpy array and save it
 images_to_array(train_images, train_captions, vgg_model, "train")
-train_images_features = np.load(open('train_features', 'rb'))
+pickle_in = open("train_features.pickle","rb")
+train_images_features = pickle.load(pickle_in)
 
+#################################################
+##### 5. ENCODING THE DATA USING THE MODEL   ####
+#################################################
+
+def data_values(data, label):
+    data_values = dict()
+    for entry in data['images']:
+        if(entry['label'] == label):
+            data_values[entry['img_id']] = entry['data']
+    return data_values
+
+train_data = data_values(data, "train")
+val_data = data_values(data, "val")
+test_data = data_values(data, "test")
+
+
+####################################################### ???????????
+####################################################### ???????????
+####################################################### ???????????
+
+# train_images              #   {1: "FILENAME1.jpeg"}
+# train_images_features     #   {1: array([[.....]])}
+# train_captions            #   {1: ['ann1' , 'ann2']}
+# train_data                #   {1: [1,2,3,4,5,6,7,8,9,10]}
+
+#################################################
+##### 6. DEFINE THE MODEL STRUCTURE          ####
+#################################################
+
+from keras.layers import Input, Embedding, LSTM, Dense, concatenate
+from keras.models import Model
+import numpy as np
+
+EMBEDDING_DIM = 128
+
+# Model structure: https://keras.io/getting-started/functional-api-guide/#multi-input-and-multi-output-models
+def create_model():
+
+    # Headline input: meant to receive sequences of 100 integers, between 1 and 10000.
+    # Note that we can name any layer by passing it a "name" argument.
+    main_input = Input(shape=(4096,), name='main_input')
+
+    # This embedding layer will encode the input sequence
+    # into a sequence of dense 129-dimensional vectors.
+    x = Embedding(output_dim=128, input_dim=4096, input_length=4096)(main_input)
+
+    # A LSTM will transform the vector sequence into a single vector,
+    # containing information about the entire sequence
+    lstm_out = LSTM(32)(x)
+
+    # Change the 4 with the vocabulary size.
+    auxiliary_output = Dense(4, activation='sigmoid', name='aux_output')(lstm_out)
+
+    # Change the 10 with the length of data
+    auxiliary_input = Input(shape=(10,), name='aux_input')
+    x = concatenate([lstm_out, auxiliary_input])
+
+    # We stack a deep densely-connected network on top
+    x = Dense(64, activation='relu')(x)
+    x = Dense(64, activation='relu')(x)
+    x = Dense(64, activation='relu')(x)
+
+    # And finally we add the main logistic regression layer
+    main_output = Dense(4, activation='sigmoid', name='main_output')(x)
+
+    model = Model(inputs=[main_input, auxiliary_input], outputs=[main_output, auxiliary_output])
+
+    model.compile(optimizer='rmsprop',
+              loss={'main_output': 'binary_crossentropy', 'aux_output': 'binary_crossentropy'},
+              loss_weights={'main_output': 1., 'aux_output': 0.2})
+
+
+
+    ################## !?!?!? ############
+    
+    main_data = np.array([[1]*4096])                    # IMAGES FEATURES ARRAY
+    aux_data = np.array([[1]*10])                  # DATA ARRAY
+    main_label = np.array([[0, 0, 0, 1]])         # CAPTIONS
+    out_label = np.array([[0, 0, 0, 1]])          # CAPTIONS
+
+    # And trained it via:
+    model.fit({'main_input': main_data, 'aux_input': aux_data},
+           {'main_output': main_label, 'aux_output': out_label},
+            epochs=5, batch_size=1)
+
+    return ""
+
+create_model()
