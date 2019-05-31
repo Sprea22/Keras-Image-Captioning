@@ -135,7 +135,7 @@ def images_to_array(images_list, vgg_model, label):
 # Convert the input images into numpy array and save it
 images_to_array(list_of_images, vgg_model, "train")
 pickle_in = open("train_features.pickle","rb")
-train_images_features = pickle.load(pickle_in)
+list_of_images_features = pickle.load(pickle_in)
 
 #################################################
 ##### 5. DEFINE THE MODEL STRUCTURE          ####
@@ -163,7 +163,7 @@ def create_model():
     lstm_out = LSTM(32)(x)
 
     # Change the 4 with the vocabulary size.
-    auxiliary_output = Dense(4, activation='sigmoid', name='aux_output')(lstm_out)
+    auxiliary_output = Dense(3, activation='sigmoid', name='aux_output')(lstm_out)
 
     # Change the 10 with the length of data
     auxiliary_input = Input(shape=(10,), name='aux_input')
@@ -175,7 +175,7 @@ def create_model():
     x = Dense(64, activation='relu')(x)
 
     # And finally we add the main logistic regression layer
-    main_output = Dense(4, activation='sigmoid', name='main_output')(x)
+    main_output = Dense(3, activation='sigmoid', name='main_output')(x)
 
     model = Model(inputs=[main_input, auxiliary_input], outputs=[main_output, auxiliary_output])
 
@@ -191,17 +191,30 @@ model = create_model()
 ##### 7.TRAIN THE DEFINED MODEL              ####
 #################################################
 
-# train_images              #   {1: "FILENAME1.jpeg"}
-# train_images_features     #   {1: array([[.....]])}
-# train_captions            #   {1: ['ann1' , 'ann2']}
-# train_data                #   {1: [1,2,3,4,5,6,7,8,9,10]}
+# list_of_images_features     # [ [1,12,31,3,123,12.....,1,5,23]    ,  [1,12,31,3,123,12.....,1,5,23]   ]
+# list_of_data                # [ [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]   ,  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]  ]
+# list_of-captions            # [ ["capt1", "capt2"]                ,  ["capt1", "capt2"]               ]
 
-main_data = np.array(train_images_features)
+main_data = np.array(list_of_images_features)
 aux_data = np.array(list_of_data)
-main_label = np.array([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]])
-out_label = np.array([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]])
+main_label = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+out_label = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 
 # And trained it via:
 model.fit({'main_input': main_data, 'aux_input': aux_data},
         {'main_output': main_label, 'aux_output': out_label},
-        epochs=5, batch_size=1)
+        epochs=10, batch_size=3)
+
+
+#################################################
+##### 8.TESTING THE TRAINED MODEL            ####
+#################################################
+
+print("\nPredicting the test input.. ")
+
+main_test = np.array([list_of_images_features[0]])
+aux_test = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+
+results = model.predict({'main_input': main_test , 'aux_input': aux_test}, verbose=1)
+
+print(results)
