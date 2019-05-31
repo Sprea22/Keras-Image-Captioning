@@ -92,10 +92,10 @@ one_hot_embeddings, maxSequenceLength = captions_preproccessing(list_of_captions
 ##### 3. CLASSIFIER MODEL ####
 ##############################
 from keras.applications.vgg16 import VGG16
-
+from keras.models import Model
 # Initializate the classifier model, in this case pretrained VGG16
-vgg_model = VGG16(weights='imagenet', include_top=False, input_shape = (224, 224, 3))
-
+vgg16_model = VGG16(weights='imagenet', include_top=True, input_shape = (224, 224, 3))
+vgg_model = Model(vgg16_model.inputs, vgg16_model.layers[-3].output)
 
 #################################################
 ##### 4. ENCODING THE IMAGES USING THE MODEL ####
@@ -152,11 +152,11 @@ def create_model():
 
     # Headline input: meant to receive sequences of 100 integers, between 1 and 10000.
     # Note that we can name any layer by passing it a "name" argument.
-    main_input = Input(shape=(25088,), name='main_input')
+    main_input = Input(shape=(4096,), name='main_input')
 
     # This embedding layer will encode the input sequence
     # into a sequence of dense 129-dimensional vectors.
-    x = Embedding(output_dim=128, input_dim=25088, input_length=25088)(main_input)
+    x = Embedding(output_dim=128, input_dim=4096, input_length=4096)(main_input)
 
     # A LSTM will transform the vector sequence into a single vector,
     # containing information about the entire sequence
